@@ -2,7 +2,7 @@
 #include "RequestLogger.h"
 
 extern "C" {
-    #include "user_interface.h"
+	#include "user_interface.h"
 }
 
 void writeToLogFile(std::string const &message);
@@ -36,10 +36,10 @@ IPAddress const AP_NETMASK(255, 255, 255, 0);
 
 Logger logger([] (std::string const &formattedMessage) {
 	Serial.println(formattedMessage.c_str());
-    writeToLogFile(formattedMessage);
-        },
-        LOGGER_MAX_LINE_LENGTH,
-        LOGGER_LINES_TO_STORE);
+	writeToLogFile(formattedMessage);
+		},
+		LOGGER_MAX_LINE_LENGTH,
+		LOGGER_LINES_TO_STORE);
 
 WateringControl wateringControl(
 		[] { digitalWrite(WATERING_RELAY_PIN, HIGH); },
@@ -67,35 +67,35 @@ to_string(String arduinoString) {
 
 void
 rotateLogFiles() {
-    for (int i = 8; i >= 0; i--) {
-        auto oldName = formatString("/log%d", i);
-        auto newName = formatString("/log%d", i + 1);
-        SPIFFS.rename(oldName.c_str(), newName.c_str());
-    }
+	for (int i = 8; i >= 0; i--) {
+		auto oldName = formatString("/log%d", i);
+		auto newName = formatString("/log%d", i + 1);
+		SPIFFS.rename(oldName.c_str(), newName.c_str());
+	}
 }
 
 int
 sizeOfFile(std::string const &path) {
-    auto file = SPIFFS.open(String(path.c_str()), "r");
-    if (file) {
-        auto size = file.size();
-        file.close();
-        return size;
-    } else {
-        return 0;
-    }
+	auto file = SPIFFS.open(String(path.c_str()), "r");
+	if (file) {
+		auto size = file.size();
+		file.close();
+		return size;
+	} else {
+		return 0;
+	}
 }
 
 void
 writeToLogFile(std::string const &message) {
-    if (sizeOfFile("/log0") >= MAX_LOG_FILE_SIZE) {
-        rotateLogFiles();
-    }
+	if (sizeOfFile("/log0") >= MAX_LOG_FILE_SIZE) {
+		rotateLogFiles();
+	}
 
-    File logFile = SPIFFS.open(String("/log0"), "a");
+	File logFile = SPIFFS.open(String("/log0"), "a");
 	if (logFile) {
 		logFile.println(message.c_str());
-        logFile.close();
+		logFile.close();
 	}
 }
 
@@ -106,25 +106,25 @@ readI2cBytes(int i2cAddress, int startRegister, int count) {
 	Wire.endTransmission(false);
 	Wire.requestFrom(i2cAddress, count);
 
-    std::vector<int> bytes;
-    while (Wire.available()) {
-        bytes.push_back(Wire.read());
-    }
+	std::vector<int> bytes;
+	while (Wire.available()) {
+		bytes.push_back(Wire.read());
+	}
 
 	return bytes;
 }
 
 void
 writeI2cBytes(
-        int i2cAddress, int startRegister, std::vector<int> const &bytes) {
-    Wire.beginTransmission(i2cAddress);
+		int i2cAddress, int startRegister, std::vector<int> const &bytes) {
+	Wire.beginTransmission(i2cAddress);
 	Wire.write(startRegister);
 
-    for (auto byte : bytes) {
-        Wire.write(byte);
-    }
+	for (auto byte : bytes) {
+		Wire.write(byte);
+	}
 
-    Wire.endTransmission(true);
+	Wire.endTransmission(true);
 }
 
 int
@@ -139,7 +139,7 @@ toBcd(int value) {
 
 void
 setTime(Time const &time) {
-    std::vector<int> bytes;
+	std::vector<int> bytes;
 
 	bytes.push_back(time.second);
 	bytes.push_back(time.minute);
@@ -152,7 +152,7 @@ setTime(Time const &time) {
 
 	bytes.push_back(toBcd(time.year % 100));
 
-    writeI2cBytes(REAL_TIME_CLOCK_ADDRESS, 0, bytes);
+	writeI2cBytes(REAL_TIME_CLOCK_ADDRESS, 0, bytes);
 
 	logger.log("set time to %s", time.toString().c_str());
 
@@ -161,13 +161,13 @@ setTime(Time const &time) {
 
 Result<Time>
 readTime() {
-    auto timeBytes = readI2cBytes(REAL_TIME_CLOCK_ADDRESS, 0, 7);
+	auto timeBytes = readI2cBytes(REAL_TIME_CLOCK_ADDRESS, 0, 7);
 
-    if (timeBytes.size() != 7) {
-        return Result<Time>::failure("real-time clock unavailable");
-    }
+	if (timeBytes.size() != 7) {
+		return Result<Time>::failure("real-time clock unavailable");
+	}
 
-    int second = fromBcd(timeBytes[0]);
+	int second = fromBcd(timeBytes[0]);
 	int minute = fromBcd(timeBytes[1]);
 	int hour = fromBcd(timeBytes[2]);
 	int weekday = fromBcd(timeBytes[3]);
@@ -185,14 +185,14 @@ readTime() {
 
 Result<Temperature>
 readTemperature() {
-    auto temperatureBytes = readI2cBytes(TEMPERATURE_SENSOR_ADDRESS, 5, 2);
+	auto temperatureBytes = readI2cBytes(TEMPERATURE_SENSOR_ADDRESS, 5, 2);
 
 	if (temperatureBytes.size() != 2) {
 		return Result<Temperature>::failure("temperature sensor unavailable");
 	}
 
 	int tempRaw = (temperatureBytes[0] & 0b00011111) * 256
-            + temperatureBytes[1];
+			+ temperatureBytes[1];
 
 	int temp16ths = tempRaw & 0b0000111111111111;
 	if (tempRaw & 0b0001000000000000) {
@@ -242,10 +242,10 @@ withParsedFile(
 
 void
 updateWifi() {
-    WiFi.persistent(false);
+	WiFi.persistent(false);
 	WiFi.disconnect();
-    WiFi.softAPdisconnect(false);
-    WiFi.enableAP(false);
+	WiFi.softAPdisconnect(false);
+	WiFi.enableAP(false);
 	WiFi.mode(WIFI_OFF);
 	WiFi.setAutoConnect(false);
 	WiFi.setAutoReconnect(true);
@@ -253,61 +253,61 @@ updateWifi() {
 	std::string ssid;
 	std::string passphrase(WIFI_DEFAULT_PASSPHRASE);
 
-   	withFileContents("/wifiConfig", [&] (std::string const &contents) {
+	withFileContents("/wifiConfig", [&] (std::string const &contents) {
 		auto lines = splitString(contents, "\n");
-        ssid = lines[0];
-        passphrase = lines[1];
-        logger.log("restored wifiConfig (ssid: %s)", ssid.c_str());
-    });
+		ssid = lines[0];
+		passphrase = lines[1];
+		logger.log("restored wifiConfig (ssid: %s)", ssid.c_str());
+	});
 
 	if (ssid.empty()) {
 		logger.log("starting WiFi station %s", WIFI_STATION_SSID);
-        WiFi.mode(WIFI_AP);
-        WiFi.softAPConfig(AP_IP_ADDRESS, AP_IP_ADDRESS, AP_NETMASK);
+		WiFi.mode(WIFI_AP);
+		WiFi.softAPConfig(AP_IP_ADDRESS, AP_IP_ADDRESS, AP_NETMASK);
 		WiFi.softAP(WIFI_STATION_SSID, passphrase.c_str());
-        wifi_softap_dhcps_start();
+		wifi_softap_dhcps_start();
 	} else {
 		logger.log("connecting to WiFi station %s", ssid.c_str());
-        WiFi.mode(WIFI_STA);
+		WiFi.mode(WIFI_STA);
 		WiFi.begin(ssid.c_str(), passphrase.c_str());
 	}
 
-    WiFi.printDiag(Serial);
+	WiFi.printDiag(Serial);
 }
 
 void
 resetWifiConfig() {
-    for (int i = 0; i < 8; i++) {
-        digitalWrite(RESET_WIFI_LED_PIN, i % 2 ? HIGH : LOW);
-        delay(500);
-    }
+	for (int i = 0; i < 8; i++) {
+		digitalWrite(RESET_WIFI_LED_PIN, i % 2 ? HIGH : LOW);
+		delay(500);
+	}
 
-    logger.log("resetting WiFi config to default");
+	logger.log("resetting WiFi config to default");
 
-    if (SPIFFS.remove("/wifiConfig")) {
-        logger.log("removed /wifiConfig");
-    } else {
-        logger.log("could not remove /wifiConfig");
-    }
+	if (SPIFFS.remove("/wifiConfig")) {
+		logger.log("removed /wifiConfig");
+	} else {
+		logger.log("could not remove /wifiConfig");
+	}
 
-    wifiNeedsUpdating = true;
+	wifiNeedsUpdating = true;
 }
 
 void
 setWifiConfig(std::string const &ssid, std::string const &passphrase) {
-    File wifiConfigFile = SPIFFS.open("/wifiConfig", "w");
-    if (wifiConfigFile) {
-        wifiConfigFile.print(ssid.c_str());
-        wifiConfigFile.print("\n");
-        wifiConfigFile.print(passphrase.c_str());
-        wifiConfigFile.close();
+	File wifiConfigFile = SPIFFS.open("/wifiConfig", "w");
+	if (wifiConfigFile) {
+		wifiConfigFile.print(ssid.c_str());
+		wifiConfigFile.print("\n");
+		wifiConfigFile.print(passphrase.c_str());
+		wifiConfigFile.close();
 
-        logger.log("saved new wifiConfig");
-    } else {
-        logger.log("failed to save new wifiConfig");
-    }
+		logger.log("saved new wifiConfig");
+	} else {
+		logger.log("failed to save new wifiConfig");
+	}
 
-    wifiNeedsUpdating = true;
+	wifiNeedsUpdating = true;
 }
 
 void
@@ -315,55 +315,55 @@ triggerWatering() {
 	if (!temperaturePtr) {
 		logger.log("triggerWatering, but temperature unavailable");
 	} else if (!mappingPtr) {
-        logger.log("triggerWatering, but no mapping set");
-    } else {
+		logger.log("triggerWatering, but no mapping set");
+	} else {
 		int mappedSeconds =
 					mappingPtr->mapTemperatureToSeconds(*temperaturePtr);
-        logger.log("triggerWatering: mapped %s°C to %ds",
-                temperaturePtr->toString().c_str(),
-                mappedSeconds);
+		logger.log("triggerWatering: mapped %s°C to %ds",
+				temperaturePtr->toString().c_str(),
+				mappedSeconds);
 
 		// don't water for <30s at a time,
 		// but do account for previous <30s chunks
 		mappedSeconds += accumulatedWateringSeconds;
 		if (mappedSeconds >= 30) {
-            wateringControl.startWatering(mappedSeconds);
+			wateringControl.startWatering(mappedSeconds);
 		} else {
 			accumulatedWateringSeconds = mappedSeconds;
 			logger.log("duration too short; %d seconds accumulated",
 					accumulatedWateringSeconds);
-        }
+		}
 	}
 }
 
 std::function<void(void)>
 streamFromSpiffs(
-        std::string const &uri,
-        std::function<std::string(void)> const &pathProvider,
-        std::string const &contentType) {
-    webServer.on(uri.c_str(), HTTP_GET, [=] {
-        File file = SPIFFS.open(pathProvider().c_str(), "r");
-        if (file) {
-            webServer.streamFile(file, contentType.c_str());
-            file.close();
-        } else {
-            serve_notFound();
-        }
-    });
+		std::string const &uri,
+		std::function<std::string(void)> const &pathProvider,
+		std::string const &contentType) {
+	webServer.on(uri.c_str(), HTTP_GET, [=] {
+		File file = SPIFFS.open(pathProvider().c_str(), "r");
+		if (file) {
+			webServer.streamFile(file, contentType.c_str());
+			file.close();
+		} else {
+			serve_notFound();
+		}
+	});
 }
 
 std::function<std::string(void)>
 uri() {
-    return [] {
-        return std::string(webServer.uri().c_str());
-    };
+	return [] {
+		return std::string(webServer.uri().c_str());
+	};
 }
 
 std::function<std::string(void)>
 path(std::string const &path) {
-    return [=] {
-        return path;
-    };
+	return [=] {
+		return path;
+	};
 }
 
 void
@@ -373,13 +373,13 @@ doSetup() {
 
 	SPIFFS.begin();
 
-    logger.log("ESP-Watergate start");
+	logger.log("ESP-Watergate start");
 
 	pinMode(WATERING_RELAY_PIN, OUTPUT);
 	pinMode(ERROR_STATUS_PIN, OUTPUT);
 
-    pinMode(RESET_WIFI_BUTTON_PIN, INPUT);
-    pinMode(RESET_WIFI_LED_PIN, OUTPUT);
+	pinMode(RESET_WIFI_BUTTON_PIN, INPUT);
+	pinMode(RESET_WIFI_LED_PIN, OUTPUT);
 
 	wateringControl.stopWatering();
 
@@ -388,10 +388,10 @@ doSetup() {
 	Wire.begin(SDA_PIN, SCL_PIN);
 
 	// set CONFIG to 0, 0 (default)
-    writeI2cBytes(TEMPERATURE_SENSOR_ADDRESS, 0, {0, 0});
+	writeI2cBytes(TEMPERATURE_SENSOR_ADDRESS, 0, {0, 0});
 
 	// set temperature resolution to 0.0625 C (default)
-    writeI2cBytes(TEMPERATURE_SENSOR_ADDRESS, 8, {0b11});
+	writeI2cBytes(TEMPERATURE_SENSOR_ADDRESS, 8, {0b11});
 
 	withParsedFile<Mapping>(
 			"/mapping", [] (std::unique_ptr<Mapping const> savedMappingPtr) {
@@ -412,13 +412,13 @@ doSetup() {
 
 	webServer.onNotFound(serve_notFound);
 
-    streamFromSpiffs("/", path("/index.html"), TEXT_HTML);
+	streamFromSpiffs("/", path("/index.html"), TEXT_HTML);
 	streamFromSpiffs("/jquery-min.js", uri(), APPLICATION_JAVASCRIPT);
 	streamFromSpiffs("/svg.min.js", uri(), APPLICATION_JAVASCRIPT);
 
-    for (int i = 0; i <= 9; i++) {
-        streamFromSpiffs(formatString("/log%d", i), uri(), TEXT_PLAIN);
-    }
+	for (int i = 0; i <= 9; i++) {
+		streamFromSpiffs(formatString("/log%d", i), uri(), TEXT_PLAIN);
+	}
 
 	webServer.on("/log", HTTP_GET, serve_get_log);
 	webServer.on("/time", HTTP_GET, serve_get_time);
@@ -432,24 +432,24 @@ doSetup() {
 	webServer.on("/mapping", HTTP_GET, serve_get_mapping);
 	webServer.on("/setMapping", HTTP_POST, serve_post_setMapping);
 	webServer.on("/setWifiConfig", HTTP_POST, serve_post_setWifiConfig);
-    webServer.on("/temperatureHistory", HTTP_GET, serve_get_temperatureHistory);
-    webServer.on("/deleteLogs", HTTP_POST, serve_post_deleteLogs);
-    webServer.on("/ls", HTTP_GET, serve_get_ls);
+	webServer.on("/temperatureHistory", HTTP_GET, serve_get_temperatureHistory);
+	webServer.on("/deleteLogs", HTTP_POST, serve_post_deleteLogs);
+	webServer.on("/ls", HTTP_GET, serve_get_ls);
 
 	webServer.begin();
 }
 
 void
 doLoop() {
-    static unsigned long lastMillis = 0;
-    if (millis() - lastMillis > MILLIS_PER_SECOND) {
-        lastMillis += MILLIS_PER_SECOND;
-        if (wateringControl.isWatering()) {
-            wateringControl.elapseSeconds(1);
-        }
-    }
+	static unsigned long lastMillis = 0;
+	if (millis() - lastMillis > MILLIS_PER_SECOND) {
+		lastMillis += MILLIS_PER_SECOND;
+		if (wateringControl.isWatering()) {
+			wateringControl.elapseSeconds(1);
+		}
+	}
 
-    readTemperature().handle(
+	readTemperature().handle(
 			[&] (std::unique_ptr<Temperature const> newTemperaturePtr) {
 		temperaturePtr.swap(newTemperaturePtr);
 	}, [&] (std::string const &explanation) {
@@ -459,7 +459,7 @@ doLoop() {
 	previousTimePtr.reset(timePtr.release());
 
 	readTime().handle(
-            [&] (std::unique_ptr<Time const> newTimePtr) {
+			[&] (std::unique_ptr<Time const> newTimePtr) {
 		timePtr.reset(newTimePtr.release());
 
 		if (!previousTimePtr) {
@@ -472,41 +472,41 @@ doLoop() {
 		}
 	});
 
-    if (timePtr && previousTimePtr
-            && timePtr->secondsInDay() != previousTimePtr->secondsInDay()) {
-        // start watering if scheduled time has been crossed
-        if (schedulePtr && schedulePtr->hasReachedTime(
-                previousTimePtr->secondsInDay(), timePtr->secondsInDay())) {
-            logger.log("reached scheduled time; previous: %s, now: %s",
-                    previousTimePtr->toString().c_str(),
-                    timePtr->toString().c_str());
-            triggerWatering();
-        }
+	if (timePtr && previousTimePtr
+			&& timePtr->secondsInDay() != previousTimePtr->secondsInDay()) {
+		// start watering if scheduled time has been crossed
+		if (schedulePtr && schedulePtr->hasReachedTime(
+				previousTimePtr->secondsInDay(), timePtr->secondsInDay())) {
+			logger.log("reached scheduled time; previous: %s, now: %s",
+					previousTimePtr->toString().c_str(),
+					timePtr->toString().c_str());
+			triggerWatering();
+		}
 
-        // record time and temperature
-        if (timePtr->secondsInDay() % RECORDING_INTERVAL_SECONDS == 0) {
-            auto temperatureString = temperaturePtr
-                    ? temperaturePtr->toString() : "xx";
+		// record time and temperature
+		if (timePtr->secondsInDay() % RECORDING_INTERVAL_SECONDS == 0) {
+			auto temperatureString = temperaturePtr
+					? temperaturePtr->toString() : "xx";
 
-            logger.log("%s -- %s",
-                    timePtr->toString().c_str(),
-                    temperatureString.c_str());
-        }
-    }
+			logger.log("%s -- %s",
+					timePtr->toString().c_str(),
+					temperatureString.c_str());
+		}
+	}
 
-    digitalWrite(ERROR_STATUS_PIN, (timePtr && temperaturePtr) ? LOW : HIGH);
+	digitalWrite(ERROR_STATUS_PIN, (timePtr && temperaturePtr) ? LOW : HIGH);
 
-    // respond to state of reset-wifi button
-    static unsigned long lastResetWifiLowMillis = 0;
-    if (digitalRead(RESET_WIFI_BUTTON_PIN) == HIGH) {
-        if (millis() - lastResetWifiLowMillis > RESET_WIFI_MILLISECONDS) {
-            resetWifiConfig();
-        }
-        digitalWrite(RESET_WIFI_LED_PIN, LOW);
-    } else {
-        lastResetWifiLowMillis = millis();
-        digitalWrite(RESET_WIFI_LED_PIN, HIGH);
-    }
+	// respond to state of reset-wifi button
+	static unsigned long lastResetWifiLowMillis = 0;
+	if (digitalRead(RESET_WIFI_BUTTON_PIN) == HIGH) {
+		if (millis() - lastResetWifiLowMillis > RESET_WIFI_MILLISECONDS) {
+			resetWifiConfig();
+		}
+		digitalWrite(RESET_WIFI_LED_PIN, LOW);
+	} else {
+		lastResetWifiLowMillis = millis();
+		digitalWrite(RESET_WIFI_LED_PIN, HIGH);
+	}
 
 	if (wifiNeedsUpdating) {
 		updateWifi();
@@ -515,6 +515,6 @@ doLoop() {
 
 	webServer.handleClient();
 
-    // maybe prevent overheating
-    delay(10);
+	// maybe prevent overheating
+	delay(10);
 }

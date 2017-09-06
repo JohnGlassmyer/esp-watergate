@@ -47,9 +47,9 @@ Schedule::parseFromString(std::string scheduleString) {
 
 bool
 Schedule::hasReachedTime(int previousSecondsInDay, int secondsInDay) const {
-    if (previousSecondsInDay == secondsInDay) {
-        return false;
-    }
+	if (previousSecondsInDay == secondsInDay) {
+		return false;
+	}
 
 	bool crossedMidnight = secondsInDay < previousSecondsInDay;
 

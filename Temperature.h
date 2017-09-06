@@ -19,8 +19,8 @@ public:
 	}
 
 	std::string toString() const {
-        int tenThousandths = degree16thsC % 16 * 10000 / 16;
-        return formatString("%d.%04d", degreesC(), tenThousandths);
+		int tenThousandths = degree16thsC % 16 * 10000 / 16;
+		return formatString("%d.%04d", degreesC(), tenThousandths);
 	}
 
 	// Too much boilerplate in the comparison overloads.

@@ -19,7 +19,7 @@ public:
 	void startWatering(int seconds);
 
 	void stopWatering();
-	
+
 	void elapseSeconds(int seconds);
 
 private:

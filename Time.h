@@ -33,14 +33,14 @@ public:
 			second(second) {}
 
 	int secondsInDay() const {
-        auto minutesInDay = hour * MINUTES_PER_HOUR + minute;
+		auto minutesInDay = hour * MINUTES_PER_HOUR + minute;
 		return minutesInDay * SECONDS_PER_MINUTE + second;
 	}
 
-    std::string toString() const {
-        return formatString("%04d%02d%02d-%1d-%02d%02d%02d",
-                year, month, day, weekday, hour, minute, second);
-    }
+	std::string toString() const {
+		return formatString("%04d%02d%02d-%1d-%02d%02d%02d",
+				year, month, day, weekday, hour, minute, second);
+	}
 };
 
 #endif

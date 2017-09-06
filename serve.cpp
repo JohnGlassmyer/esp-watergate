@@ -70,11 +70,11 @@ serve_get_log() {
 
 void
 serve_get_time() {
-    if (timePtr) {
+	if (timePtr) {
 		webServer.send(200, TEXT_PLAIN, timePtr->toString().c_str());
-    } else {
+	} else {
 		webServer.send(503, TEXT_PLAIN, "time unavailable");
-    }
+	}
 }
 
 void
@@ -89,17 +89,17 @@ serve_post_setTime() {
 
 void
 serve_get_temperature() {
-    if (temperaturePtr) {
+	if (temperaturePtr) {
 		webServer.send(200, TEXT_PLAIN, temperaturePtr->toString().c_str());
-    } else {
+	} else {
 		webServer.send(503, TEXT_PLAIN, "temperature unavailable");
-    }
+	}
 }
 
 void
 serve_get_wateringSeconds() {
 	webServer.send(200, TEXT_PLAIN,
-            String(wateringControl.getRemainingSeconds()));
+			String(wateringControl.getRemainingSeconds()));
 }
 
 void
@@ -194,7 +194,7 @@ serve_post_setWifiConfig() {
 					wifiConfigPtr->ssid.c_str(),
 					wifiConfigPtr->passphrase.length());
 
-            setWifiConfig(wifiConfigPtr->ssid, wifiConfigPtr->passphrase);
+			setWifiConfig(wifiConfigPtr->ssid, wifiConfigPtr->passphrase);
 
 			webServer.sendHeader("Location", "/");
 			webServer.send(303);
@@ -213,50 +213,50 @@ serve_get_temperatureHistory() {
 	webServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
 	webServer.send(200, TEXT_PLAIN, "");
 
-    for (int i = 9; i >= 0; i--) {
-        auto logFilePath = formatString("/log%d", i);
-        auto logFile = SPIFFS.open(logFilePath.c_str(), "r");
-        while (logFile.available() > 0) {
-            String line = logFile.readStringUntil('\n');
-            if (line.indexOf("--") != -1) {
-                // "yyyymmdd"
-                webServer.sendContent(line.substring(9, 17));
+	for (int i = 9; i >= 0; i--) {
+		auto logFilePath = formatString("/log%d", i);
+		auto logFile = SPIFFS.open(logFilePath.c_str(), "r");
+		while (logFile.available() > 0) {
+			String line = logFile.readStringUntil('\n');
+			if (line.indexOf("--") != -1) {
+				// "yyyymmdd"
+				webServer.sendContent(line.substring(9, 17));
 
-                // "-hhmmss"
-                webServer.sendContent(line.substring(19, 26));
+				// "-hhmmss"
+				webServer.sendContent(line.substring(19, 26));
 
-                webServer.sendContent(",");
+				webServer.sendContent(",");
 
-                // "nn.nnnn" (temperature)
-                webServer.sendContent(line.substring(30));
-            }
-        }
-        logFile.close();
+				// "nn.nnnn" (temperature)
+				webServer.sendContent(line.substring(30));
+			}
+		}
+		logFile.close();
 
-        // maybe prevent watchdog timer from resetting system
-        // not sure that this is necessary here
-        yield();
-    }
+		// maybe prevent watchdog timer from resetting system
+		// not sure that this is necessary here
+		yield();
+	}
 }
 
 void
 serve_post_deleteLogs() {
-    std::vector<String> logFilenames;
-    auto dir = SPIFFS.openDir("/");
-    while (dir.next()) {
-        if (dir.fileName().startsWith("/log")) {
-            logFilenames.push_back(dir.fileName());
-        }
-    }
+	std::vector<String> logFilenames;
+	auto dir = SPIFFS.openDir("/");
+	while (dir.next()) {
+		if (dir.fileName().startsWith("/log")) {
+			logFilenames.push_back(dir.fileName());
+		}
+	}
 
-    for (String logFilename : logFilenames) {
-        SPIFFS.remove(logFilename);
-    }
+	for (String logFilename : logFilenames) {
+		SPIFFS.remove(logFilename);
+	}
 
-    logger.log("deleted logs");
+	logger.log("deleted logs");
 
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
+	webServer.sendHeader("Location", "/");
+	webServer.send(303);
 }
 
 void
@@ -265,12 +265,12 @@ serve_get_ls() {
 
 	webServer.send(200, TEXT_PLAIN, "");
 
-    auto dir = SPIFFS.openDir("/");
-    while (dir.next()) {
-        auto file = dir.openFile("r");
-        auto text = formatString("%10d %s\n", file.size(), file.name());
-        webServer.sendContent(text.c_str());
-    }
+	auto dir = SPIFFS.openDir("/");
+	while (dir.next()) {
+		auto file = dir.openFile("r");
+		auto text = formatString("%10d %s\n", file.size(), file.name());
+		webServer.sendContent(text.c_str());
+	}
 }
 
 #endif
