@@ -11,4 +11,4 @@ Out of the box, the device automatically hosts its own WiFi access point, but it
 
 Uses an I2C real-time clock, Maxim DS3231, and an I2C temperature sensor, Microchip MCP9808 (both common and inexpensive).
 
-Required hardware setup details are listed in the frontend HTML document (data/index.html). All parts should total less than $30. Hobbyist electronics ability required to assemble. If intending to switch mains voltage, don't electrify yourself.
+Required hardware setup details are listed in the frontend HTML document (data/index.html). All parts should total less than $30. Hobbyist electronics ability required to assemble. If intending to switch mains voltage, don't electrocute yourself.
