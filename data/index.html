@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ESP Watergate</title>
+    <script src="jquery-min.js"></script>
+    <script src="svg.min.js"></script>
+    <script>
+        var svg;
+        var dataFromServer = {
+            wateringSeconds: null,
+            temperature: null,
+            time: null,
+            mapping: null,
+            schedule: null,
+        };
+
+        function updateGraph() {
+            $("#statusList li").hide();
+
+            $("#graph").hide();
+            svg.clear();
+
+            if (dataFromServer["wateringSeconds"] === null
+                    || dataFromServer["mapping"] === null
+                    || dataFromServer["schedule"] === null) {
+                $("#serverError").show();
+
+                $("#controls").hide();
+            } else {
+                var text;
+                if (dataFromServer["wateringSeconds"] > 0) {
+                    text = "Valve powered ("
+                            + dataFromServer["wateringSeconds"]
+                            + " seconds remaining)";
+                } else {
+                    text = "Valve unpowered";
+                }
+                $("#relayStatus").text(text);
+                $("#relayStatus").show();
+
+                $("#controls").show();
+
+                var temperature = dataFromServer["temperature"];
+                if (temperature === null) {
+                    $("#tempError").show();
+                    $("#headerTemp").text("❌");
+
+                    $("#noWateringWarning").show();
+                } else {
+                    $("#headerTemp").text(temperature + "°C");
+                }
+
+                var time = dataFromServer["time"];
+                if (time === null) {
+                    $("#timeError").show();
+                    $("#headerWeekday").text("❌");
+                    $("#headerTime").text("❌");
+
+                    $("#noWateringWarning").show();
+
+                    $("#timeValue").text("<unavailable>");
+                    $("#timeForm .edit").hide();
+                } else {
+                    var weekdayNumber = time.split("-")[1];
+                    $("#headerWeekday").text(
+                        ["", "日", "月", "火", "水", "木", "金", "土"][weekdayNumber]
+                    );
+
+                    var [, hh, mm] = /^(\d\d)(\d\d)/.exec(time.split("-")[2]);
+                    $("#headerTime").text(hh + ":" + mm);
+
+                    $("#timeValue").text(time || "<none>");
+                    $("#timeForm input[type=text]").val(time);
+                }
+
+                if (dataFromServer["schedule"] == "") {
+                    $("#scheduleWarning").show();
+
+                    $("#noWateringWarning").show();
+                }
+
+                $("#scheduleValue").text(dataFromServer["schedule"] || "<none>");
+                $("#scheduleForm input[type=text]").val(dataFromServer["schedule"]);
+
+                var mapping = dataFromServer["mapping"];
+
+                $("#mappingValue").text(mapping || "<none>");
+                $("#mappingForm input[type=text]").val(mapping);
+
+                if (mapping == "") {
+                    $("#mappingWarning").show();
+
+                    $("#noWateringWarning").show();
+                }
+
+                if (mapping) {
+                    $("#graph").show();
+
+                    var mappingPoints = mapping
+                            .replace(/\s/g, "")
+                            .split(",")
+                            .map(function(pointText) {
+                        var pointParts = pointText.split(":");
+                        return {
+                            temperature: 1*pointParts[0],
+                            duration: 1*pointParts[1],
+                            text: pointText,
+                        };
+                    });
+
+                    var mappedTemperatures = mappingPoints.map(function(point) {
+                        return point["temperature"];
+                    });
+                    var mappedDurations = mappingPoints.map(function(point) {
+                        return point["duration"];
+                    });
+                    var left = Math.min(...mappedTemperatures) - 5;
+                    var right = Math.max(...mappedTemperatures) + 5;
+                    var bottom = 0;
+                    var top = Math.max(...mappedDurations) + 60;
+
+                    var viewbox = svg.viewbox();
+
+                    function toViewboxX(temperature) {
+                        return -(temperature - left) * viewbox.width / (left - right);
+                    }
+
+                    function toViewboxY(duration) {
+                        return (duration - top) * viewbox.height / (bottom - top);
+                    }
+
+                    var graphPoints = mappingPoints.map(function(point) {
+                        return {
+                            x: toViewboxX(point["temperature"]),
+                            y: toViewboxY(point["duration"]),
+                            mappingPoint: point,
+                        };
+                    });
+
+                    var leftX = toViewboxX(left);
+                    var rightX = toViewboxX(right);
+                    var bottomY = toViewboxY(bottom);
+                    var degreeWidth = toViewboxX(1) - toViewboxX(0);
+
+                    var path = leftX + "," + bottomY
+                            + " " + leftX + "," + graphPoints[0]["y"];
+                    graphPoints.forEach(function(graphPoint) {
+                        path += " " + graphPoint["x"] + "," + graphPoint["y"];
+                    });
+                    var lastPoint = graphPoints[graphPoints.length - 1];
+                    path = path
+                        + " " + rightX + "," + lastPoint["y"]
+                        + " " + rightX + "," + bottomY;
+
+                    var polygon = svg.polygon(path);
+                    if (temperature === null || time === null) {
+                        // red to indicate error
+                        polygon.attr("fill", "#E66");
+                    } else if (dataFromServer["wateringSeconds"] > 0) {
+                        // blue to indicate watering
+                        polygon.attr("fill", "#ABD");
+                    } else if (dataFromServer["schedule"] == "") {
+                        // gray to indicate inactivity
+                        polygon.attr("fill", "#DDD");
+                    } else {
+                        // green to indicate standby
+                        polygon.attr("fill", "#BDB");
+                    }
+
+                    graphPoints.forEach(function(point) {
+                        var pointGroup = svg.group();
+                        pointGroup.attr("class", "mappingPointGroup");
+
+                        var pointLine = pointGroup.line(
+                                point["x"], bottomY,
+                                point["x"], point["y"]);
+                        pointLine.stroke({width: 1});
+
+                        var hoverRadius = 25;
+						pointGroup.circle(2 * hoverRadius)
+								.move(point["x"] - hoverRadius,
+										point["y"] - hoverRadius)
+								.attr("fill-opacity", 0);
+
+                        var radius = 2;
+                        pointGroup.circle(2 * radius)
+                                .move(point["x"] - radius, point["y"] - radius)
+                                .attr("opacity", "0.5");
+
+                        var mappingPoint = point["mappingPoint"];
+                        var label = pointGroup.text(
+                                mappingPoint["duration"] + "s"
+                                + " @ " + mappingPoint["temperature"] + "°C");
+                        label.font({"anchor": "middle"});
+                        label.move(point["x"], point["y"] - 25);
+                    });
+
+                    if (temperature !== null) {
+                        var barTemp = Math.min(Math.max(temperature, left + 0.1), right - 0.1);
+                        var tempBar = svg.rect(degreeWidth, viewbox["height"]);
+                        tempBar.move(toViewboxX(barTemp - 0.5, bottomY));
+                        tempBar.attr("opacity", "0.25");
+
+                        var lesser = mappingPoints.slice().reverse().find(
+                                function(point) {
+                            return point["temperature"] <= temperature;
+                        });
+
+                        console.log(lesser);
+
+                        var greater = mappingPoints.find(function (point) {
+                            return point["temperature"] > temperature;
+                        });
+
+                        console.log(greater);
+
+                        var mappedDuration;
+                        if (lesser && greater) {
+                            mappedDuration =
+                                    lesser["duration"]
+                                    + (temperature - lesser["temperature"])
+                                    * (greater["duration"] - lesser["duration"])
+                                    / (greater["temperature"] - lesser["temperature"]);
+                        } else if (lesser) {
+                            mappedDuration = lesser["duration"];
+                        } else if (greater) {
+                            mappedDuration = greater["duration"];
+                        }
+
+                        console.log(mappedDuration);
+
+						var mappedX = toViewboxX(barTemp);
+                        var mappedY = toViewboxY(mappedDuration);
+
+                        var pointGroup = svg.group();
+                        pointGroup.attr("class", "mappingPointGroup");
+
+						var indicatorRadius = 6;
+                        var hoverRadius = 25;
+						pointGroup.circle(2 * hoverRadius)
+								.move(mappedX - hoverRadius,
+										mappedY - hoverRadius)
+								.attr("fill-opacity", 0);
+                        pointGroup.polyline(
+								[
+										[indicatorRadius, -indicatorRadius],
+										[-indicatorRadius, -indicatorRadius],
+										[0, indicatorRadius],
+										[indicatorRadius, -indicatorRadius]])
+                                .move(mappedX - indicatorRadius,
+										mappedY - 2 * indicatorRadius);
+
+                        var mappedDurationText =
+								Math.round(mappedDuration) + "s"
+								+ " @ " + temperature + "°C";
+
+                        var label = pointGroup.text(
+								"(" + mappedDurationText + ")");
+                        label.font({"anchor": "middle"});
+                        label.move(mappedX, mappedY - 35);
+
+                        $("#presentMapping").show().text(
+                                "Duration for present temperature: "
+                                + mappedDurationText);
+                    }
+                }
+            }
+        }
+
+        function onGetWateringSecondsSuccess(seconds) {
+            dataFromServer["wateringSeconds"] = seconds;
+            updateGraph();
+        }
+
+        function onGetWateringSecondsError() {
+            dataFromServer["wateringSeconds"] = null;
+            updateGraph();
+        }
+
+        function onGetTemperatureSuccess(temperature) {
+            dataFromServer["temperature"] = temperature;
+            updateGraph();
+        }
+
+        function onGetTemperatureError(error) {
+            dataFromServer["temperature"] = null;
+            updateGraph();
+        }
+
+        function onGetTimeSuccess(time) {
+            dataFromServer["time"] = time;
+            updateGraph();
+        }
+
+        function onGetTimeError(error) {
+            dataFromServer["time"] = null;
+            updateGraph();
+        }
+
+        function onGetMappingSuccess(mapping) {
+            dataFromServer["mapping"] = mapping;
+            updateGraph();
+        }
+
+        function onGetMappingError(error) {
+            dataFromServer["mapping"] = null;
+            updateGraph();
+        }
+
+        function onGetScheduleSuccess(schedule) {
+            dataFromServer["schedule"] = schedule;
+            updateGraph();
+        }
+
+        function onGetScheduleError(error) {
+            dataFromServer["schedule"] = null;
+            updateGraph();
+        }
+
+        function updateStatus() {
+            $.ajax({
+                url: "/wateringSeconds",
+                type: "GET",
+                success: onGetWateringSecondsSuccess,
+                error: onGetWateringSecondsError,
+            });
+
+            $.ajax({
+                url: "/time",
+                type: "GET",
+                success: onGetTimeSuccess,
+                error: onGetTimeError,
+            });
+
+            $.ajax({
+                url: "/temperature",
+                type: "GET",
+                success: onGetTemperatureSuccess,
+                error: onGetTemperatureError,
+            });
+
+            $.ajax({
+                url: "/schedule",
+                type: "GET",
+                success: onGetScheduleSuccess,
+                error: onGetScheduleError,
+            });
+
+            $.ajax({
+                url: "/mapping",
+                type: "GET",
+                success: onGetMappingSuccess,
+                error: onGetMappingError,
+            });
+        }
+
+        function activateForm(formSelector) {
+            $(formSelector).addClass("active");
+
+            var input = $(formSelector).find("input[type=text]");
+
+            input.focus();
+
+            // move cursor to end of field value
+            var val = input.val();
+            input.val("");
+            input.val(val);
+        }
+
+        function deactivateForm(formSelector) {
+            $(formSelector).removeClass("active");
+        }
+
+        $(document).ready(function() {
+            svg = SVG("graph");
+
+            if (1) {
+                updateStatus();
+            } else {
+                onGetWateringSecondsSuccess(20);
+                //onGetWateringSecondsSuccess(0);
+                //onGetWateringSecondsError();
+
+                onGetTemperatureSuccess(13);
+                //onGetTemperatureSuccess(-100);
+                //onGetTemperatureSuccess(100);
+                //onGetTemperatureError();
+
+                onGetTimeSuccess("20170707-3-123456");
+                onGetTimeError();
+
+                onGetScheduleSuccess("1100, 1300, 1500");
+                //onGetScheduleSuccess("");
+                //onGetScheduleErorr();
+
+                onGetMappingSuccess("5:30, 10:60, 40:420");
+                //onGetMappingSuccess("");
+                //onGetMappingError();
+            }
+        });
+    </script>
+    <style>
+        * {
+            font-family: Lucida Sans, Trebuchet MS, sans-serif;
+        }
+        body {
+            margin: 0em;
+            padding: 0em;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            display: inline-block;
+            margin: 0em;
+        }
+        h2 {
+            margin-top: 0.5em;
+        }
+        p, ul {
+            margin-top: 0.25em;
+        }
+        ul {
+            padding: 0em;
+            list-style-type: none;
+        }
+        li:before {
+            display: inline-block;
+            text-align: center;
+            width: 1em;
+            padding-right: 0.5em;
+            content: "•";
+        }
+        li.error:before {
+            color: red;
+            content: "❌";
+        }
+        li.warning:before {
+            color: orange;
+            content: "⚠";
+        }
+        .error {
+            display: none;
+        }
+        input {
+            margin: 0em;
+        }
+        svg .mappingPointGroup text {
+            opacity: 0;
+        }
+        svg .mappingPointGroup circle {
+            opacity: 0.5;
+        }
+        svg .mappingPointGroup:hover > * {
+            opacity: 1;
+        }
+        #header {
+            position: relative;
+            width: 50em;
+            height: 100%;
+            margin: auto;
+            padding: 1em;
+        }
+        #headerStatus {
+            position: absolute;
+            top: 1em;
+            right: 1em;
+            font-size: 1.5em;
+            vertical-align: bottom;
+        }
+        #headerWeekday {
+            padding: 0.125em 0.25em;
+            margin: 0em 0.125em;
+            background: #aaa;
+            border-radius: 0.25em;
+        }
+        #headerBackground {
+            margin: 0em;
+            padding: 0em;
+            background-color: #ccc;
+        }
+        #content {
+            width: 50em;
+            margin: auto;
+            padding: 2em;
+            padding-top: 0.5em;
+        }
+        #graph {
+            height: 20em;
+            max-width: 47em;
+            border: 1px solid #888;
+        }
+        #summary {
+            width: 49%;
+            aborder: 1px solid #888;
+        }
+        form input[type=text],
+        .configValue {
+            font-size: 0.8em;
+            width: 19em;
+            padding: 0em 0.25em;
+            margin: 0.5em 0em;
+        }
+        .configValue {
+            display: inline-block;
+            background: #ddd;
+            border: 1px solid gray;
+        }
+        input[type=submit] {
+            width: 7em;
+        }
+        button {
+            width: 7em;
+        }
+        .section {
+            padding-left: 2em;
+            margin-bottom: 1em;
+        }
+        .configForm input,
+        .configForm button.cancel {
+            display: none;
+        }
+        .configForm.active input,
+        .configForm.active button.cancel {
+            display: inline;
+        }
+        .configForm.active .configValue,
+        .configForm.active button.edit {
+            display: none;
+        }
+        .parenthetical {
+            color: gray;
+            font-style: italic;
+            margin-bottom: 1em;
+        }
+
+        .tooltip {
+            position: relative;
+        }
+        .tooltip :first-child:before {
+            content: "🛈";
+        }
+        .tooltip :first-child + span {
+            display: none;
+            position: absolute;
+            left: 1em;
+            top: 0.5em;
+            background: #EEE;
+            z-index: 1;
+            padding: 0.5em;
+            width: 30em;
+            border: 1px solid #CCC;
+        }
+        .tooltip :first-child:hover + span {
+            display: inline;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="headerBackground">
+        <div id="header">
+            <h1>ESP Watergate</h1>
+            <span class="tooltip">
+                <span></span>
+                <span>
+                    An ESP8266-based, temperature-responsive electric-valve
+                    controller for plant irrigation.
+                </span>
+            </span>
+            <div id="headerStatus">
+                <span id="headerTemp" title="sensor temperature">❌</span>
+                <span id="headerWeekday" title="day of the week">❌</span>
+                <span id="headerTime" title="current time">❌</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="content">
+        <h2>Current Status</h2>
+        <div class="section">
+            <ul id="statusList">
+                <li id="relayStatus"></li>
+                <li id="presentMapping"></li>
+                <li id="serverError" class="error">Failed to contact Watergate</li>
+                <li id="tempError" class="error">Temperature sensor unreachable</li>
+                <li id="timeError" class="error">Real-time clock unreachable</li>
+                <li id="scheduleWarning" class="warning">No schedule set</li>
+                <li id="mappingWarning" class="warning">Temperature-duration mapping not set</li>
+                <li id="noWateringWarning" class="warning">No watering will occur</li>
+            </ul>
+
+            <div id="graph"></div>
+        </div>
+
+        <div id="controls">
+            <h2>Configuration</h2>
+            <div class="section">
+                <h3>Date / Time</h3>
+                <div class="section">
+                    <form id="timeForm" class="configForm" method="post" action="/setTime">
+                        <span id="timeValue" class="configValue">[loading...]</span>
+                        <input type="text" name="time" placeholder="yyyymmdd-w-hhmmdd" />
+                        <span class="tooltip">
+                            <span></span>
+                            <span>
+                                24-hour time. Weekday digit ranges from 1 (Sunday)
+                                to 7 (Saturday).
+                                <br/><br/>
+                                Example:
+                                <br/>
+                                20170503-2-112301
+                            </span>
+                        </span>
+                        <button type="button" class="edit"
+                                onclick="activateForm('#timeForm'); return false;">Edit</button>
+                        <button type="button" class="cancel"
+                                onclick="deactivateForm('#timeForm'); return false;">Cancel</button>
+                        <input type="submit" value="Submit" />
+                    </form>
+                </div>
+
+                <h3>Watering Schedule</h3>
+                <div class="section">
+                    <form id="scheduleForm" class="configForm" method="post" action="/setSchedule">
+                        <span id="scheduleValue" class="configValue">[loading...]</span>
+                        <input type="text" name="schedule" placeholder="hhmm, hhmm, hhmm" />
+                        <span class="tooltip">
+                            <span></span>
+                            <span>
+                                Up to 10 times (in 24-hour format) at which to start
+                                watering (powering the valve relay) each day.
+                                <br/><br/>
+                                Clearing this will disable watering.
+                                <br/><br/>
+                                Example:
+                                <br/>
+                                1100, 1300, 1500, 1700
+                            </span>
+                        </span>
+                        <button type="button" class="edit"
+                                onclick="activateForm('#scheduleForm');">Edit</button>
+                        <button type="button" class="cancel"
+                                onclick="deactivateForm('#scheduleForm');">Cancel</button>
+                        <input type="submit" value="Submit" />
+                    </form>
+                </div>
+
+                <h3>Temperature-Duration Mapping</h3>
+                <div class="section">
+                    <form id="mappingForm" class="configForm"
+                            method="post" action="/setMapping">
+                        <span id="mappingValue" class="configValue">[loading...]</span>
+                        <input type="text" name="mapping"
+                                placeholder="tt:ddd, tt:ddd, tt:ddd" />
+                        <span class="tooltip">
+                            <span></span>
+                            <span>
+                                A mapping from temperature to watering duration,
+                                specified as a comma-separated sequence of pairs:
+                                [temperature in degrees Celsius]:[duration in seconds].
+                                <br/><br/>
+                                Each duration must be at least 30. Temperature must be
+                                in the range from 0 to 50. Must be in increasing order
+                                by temperature.
+                                <br/><br/>
+                                Clearing this will disable watering.
+                                <br/><br/>
+                                Example:
+                                <br/>
+                                10:60, 40:420
+                            </span>
+                        </span>
+                        <button type="button" class="edit"
+                                onclick="activateForm(mappingForm);">Edit</button>
+                        <button type="button" class="cancel"
+                                onclick="deactivateForm('#mappingForm');">Cancel</button>
+                        <input type="submit" value="Submit" />
+                    </form>
+                </div>
+            </div>
+
+            <h2>Manual Control of Valve Relay</h2>
+            <div class="section">
+                <h3>Start (or Continue) Watering</h3>
+                <div class="section">
+                    <form method="post" action="/startWatering">
+                        <input type="text" name="seconds"
+                            placeholder=">= 30" />
+                        <span class="tooltip">
+                            <span></span>
+                            <span>
+                                Number of seconds to activate the relay which
+                                switches mains power to the electric valve. Valve
+                                opens when powered, then closes when unpowered.
+                                <br/><br/>
+                                Valve must be powered for at least 30 seconds at a
+                                time in order to charge its self-closing capacitor.
+                            </span>
+                        </span>
+                        <input type="submit" value="Submit" />
+                    </form>
+                </div>
+
+                <h3>Stop Watering</h3>
+                <div class="section">
+                    <form method="post" action="/stopWatering">
+                        <input type="submit" value="Submit" />
+                    </form>
+                </div>
+            </div>
+
+            <h2>Connect to WiFi Network</h2>
+            <div class="section">
+                <form method="post" action="/setWifiConfig">
+                    <h3>SSID</h3>
+                    <input type="text" name="ssid"
+                        placeholder="leave blank to create an access point" />
+
+                    <h3>Passphrase</h3>
+                    <input type="password" name="passphrase"
+                        placeholder="8 - 50 characters"/>
+
+                    <input type="submit" value="Submit" />
+                </form>
+            </div>
+        </div>
+
+        <h2>Hardware Assumptions</h2>
+        <div class="section parenthetical">
+            <ul>
+                <li>
+                    Running on
+                    <a href="https://github.com/nodemcu/nodemcu-devkit-v1.0"
+                            target="_blank">NodeMCU DEVKIT V1.0</a>
+                    (using
+                    <a href="https://github.com/esp8266/Arduino"
+                            target="_blank">ESP8266 Arduino core</a>)
+                </li>
+                <li>
+                    I²C bus on GPIO pins 4 (SDA) and 5 (SCL)
+                </li>
+                <li>
+                    Valve relay controlled via GPIO pin 9
+                </li>
+                <li>
+                    Error status LED on GPIO pin 10
+                </li>
+                <li>
+                    WiFi reset button on GPIO pin 14
+                </li>
+                <li>
+                    Real-time clock
+                    <a href="https://datasheets.maximintegrated.com/en/ds/DS3231.pdf"
+                            target="_blank">DS3231</a>
+                    at I²C address 0b1101000
+                </li>
+                <li>
+                    Temperature sensor
+                    <a href="http://ww1.microchip.com/downloads/en/DeviceDoc/25095A.pdf"
+                            target="_blank">MCP9808</a>
+                    at I²C address 0b0011000
+                </li>
+        </div>
+    </div>
+</body>
+</html>
